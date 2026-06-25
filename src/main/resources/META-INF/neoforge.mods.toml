@@ -1,0 +1,44 @@
+modLoader = "javafml"
+loaderVersion = "[4,)"
+
+license = "MIT"
+
+[[mods]]
+modId = "create_addon"
+version = "${version}"
+displayName = "Create Addon"
+authors = "hedaas"
+description = '''
+Worked example: a kinetic block + a processing recipe on Create 6.0.x / NeoForge 1.21.1.
+This file is generated from ${version} — see build.gradle processResources.
+'''
+
+[[dependencies.create_addon]]
+    modId = "minecraft"
+    type = "required"
+    versionRange = "[1.21.1,1.22)"
+    side = "BOTH"
+
+[[dependencies.create_addon]]
+    modId = "neoforge"
+    type = "required"
+    versionRange = "[21.1.219,)"
+    side = "BOTH"
+
+[[dependencies.create_addon]]
+    modId = "create"
+    type = "required"
+    versionRange = "[6.0.10,)"
+    side = "BOTH"
+
+[[dependencies.create_addon]]
+    modId = "flywheel"
+    type = "optional"
+    versionRange = "[1.0.6,)"
+    side = "BOTH"
+
+[[dependencies.create_addon]]
+    modId = "ponder"
+    type = "optional"
+    versionRange = "[1.0.82,)"
+    side = "BOTH"
