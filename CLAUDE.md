@@ -55,37 +55,51 @@ For every task that touches Create / NeoForge / MC APIs, you **must consult the 
 
 ### 2.2. How to consult codegraph
 
-The index is built from two repos cloned into the project workspace:
+The index is built from Create source already cloned into the project workspace (managed by Hermes — **do not re-clone**). NeoForge is NOT indexed yet; if you need it, ask Hermes.
 
-| Repo | Path | Why |
-|---|---|---|
-| `Creators-of-Create/Create` | `~/Project/MC_MOD_DEV/.codegraph/create/` | All Create 6.0.10 internals (kinetics, processing recipes, behaviours, mixins) |
-| `NeoForge-Mods/NeoForge` (or `neoforged/NeoForge`) | `~/Project/MC_MOD_DEV/.codegraph/neoforge/` | NeoForge 21.1.219 internals (mod loader, event bus, AT, datagen) |
+| Repo | Path | Pinned to | Why |
+|---|---|---|---|
+| `Creators-of-Create/Create` | `~/Project/MC_MOD_DEV/.codegraph/create/` → symlink to `../_refs/Create/` | commit **`ac0c444d9`** (Create 6.0.10 boundary, gradle.properties says `mod_version = 6.0.10`) | All Create 6.0.10 internals (kinetics, processing recipes, behaviours, mixins) |
+| `neoforged/NeoForge` | *(not yet cloned — ask Hermes)* | — | NeoForge 21.1.219 internals |
 
-**Setup once** (if not already present):
+**Verify the index is alive** (run BEFORE any codegraph call):
 
 ```bash
-mkdir -p ~/Project/MC_MOD_DEV/.codegraph
-cd ~/Project/MC_MOD_DEV/.codegraph
-git clone --depth 1 --branch mc1.21.1-6.0.10 https://github.com/Creators-of-Create/Create.git create 2>&1 | tail -3
-git clone --depth 1 --branch 21.1.x https://github.com/neoforged/NeoForge.git neoforge 2>&1 | tail -3
-cd create && codegraph init && cd ../neoforge && codegraph init
+readlink ~/Project/MC_MOD_DEV/.codegraph/create           # should resolve to ../_refs/Create
+cd ~/Project/MC_MOD_DEV/.codegraph/create && git rev-parse HEAD   # MUST print ac0c444d9...
+cd ~/Project/MC_MOD_DEV/.codegraph/create && grep mod_version gradle.properties   # MUST print: mod_version = 6.0.10
 ```
 
-**Per-task lookup** (run BEFORE writing code):
+If `readlink` is broken, `HEAD` is wrong, or `mod_version` is not 6.0.10 → **stop and tell Hermes**. The index is stale or missing; writing code against it will silently target the wrong Create version.
+
+**Setup once** (Hermes-side; you do not run this):
+
+```bash
+mkdir -p ~/Project/MC_MOD_DEV/_refs
+git clone https://github.com/Creators-of-Create/Create.git ~/Project/MC_MOD_DEV/_refs/Create
+cd ~/Project/MC_MOD_DEV/_refs/Create && git checkout ac0c444d9
+ln -s ../_refs/Create ~/Project/MC_MOD_DEV/.codegraph/create
+cd ~/Project/MC_MOD_DEV/.codegraph/create && codegraph init
+```
+
+**Per-task lookup** (run BEFORE writing code) — use the `codegraph` skill's stdio MCP wrapper, OR `codegraph_search` / `codegraph_node` CLI:
 
 ```bash
 # Find a class/interface
-codegraph_search "ShellSubLevelImpactCallback" --kind class --path ~/Project/MC_MOD_DEV/.codegraph/create/
+codegraph_search "KineticBlockEntity" --kind class --path ~/Project/MC_MOD_DEV/.codegraph/create/
 
-# Read the exact signature of a method
-codegraph_node --file "src/main/java/com/simibubi/create/content/processing/recipe/ProcessingRecipe.java" --line 50
+# Read the exact signature of a method (use codegraph_node, NOT read_file — codegraph gives you the index's symbols + callers)
+codegraph_node --file "src/main/java/com/simibubi/create/content/processing/recipe/ProcessingRecipe.java"
 
-# Cross-repo: how does NeoForge resolve DeferredRegister bound to mod bus
-codegraph_node --file "src/main/java/net/neoforged/neoforge/registries/DeferredRegister.java" --line 80
+# Blast radius: who else depends on this class?
+codegraph_explore --query "src/main/java/com/simibubi/create/content/kinetics/base/KineticBlockEntity.java" --path ~/Project/MC_MOD_DEV/.codegraph/create/
 ```
 
+**Stdio MCP** (preferred when you need many calls in one session — see `~/.hermes/skills/software-development/codegraph` for the wrapper script; one `codegraph serve --mcp --path ~/Project/MC_MOD_DEV/.codegraph/create/ --no-watch` subprocess per repo).
+
 **Rule**: if you find yourself about to write `import com.simibubi.create.X.Y.Z` and you have not run `codegraph_search` for `X.Y.Z` in this session, **stop and run it first**. Verify the class actually exists at the version you're targeting. This is the #1 cause of "looks-right code that won't compile."
+
+**Out-of-index methods**: if codegraph returns "no results" for a method you need (mixin-injected, obfuscated, or runtime-generated), fall back to `grep -rn 'methodName' ~/Project/MC_MOD_DEV/.codegraph/create/src/main/java/` and document the fallback in your commit message.
 
 ### 2.3. Cross-repo bug diagnosis (CBC × Sable pattern)
 
